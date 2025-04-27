@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "queue.h"
+
+int empty(struct queue_t * q) {
+        if (q == NULL) return 1;
+	return (q->size == 0);
+}
+
+void enqueue(struct queue_t * q, struct pcb_t * proc) {
+        /* TODO: put a new process to queue [q] */
+        //if (q == NULL || proc == NULL) {printf("dellcojtrongenqueue"); return;}
+        if (q->size >= MAX_QUEUE_SIZE) {
+                fprintf(stderr, "Queue is full\n");
+                return;
+        }
+        q->proc[q->size] = proc;
+        q->size++;
+}
+
+struct pcb_t * dequeue(struct queue_t * q) {
+        /* TODO: return a pcb whose prioprity is the highest
+         * in the queue [q] and remember to remove it from q
+         * */
+        if (empty(q)) {return NULL;}
+        /*The description of MLQ policy: the traversed step of ready queue list is a fixed formulated number
+based on the priority, i.e. slot= (MAX PRIO - prio), each queue have only fixed slot to use the CPU and
+when it is used up, the system must change the resource to the other process in the next queue and left the
+remaining work for future slot even though it needs a completed round of ready queue.*/
+        int min_prio = MAX_PRIO;
+        int min_index = -1;
+        for (int i = 0; i < q->size; i++) {
+                if (q->proc[i]->priority < min_prio) {
+                        min_prio = q->proc[i]->priority;
+                        min_index = i;
+                }
+        }
+        struct pcb_t * proc = q->proc[min_index];
+        for (int i = min_index; i < q->size - 1; i++) {
+                q->proc[i] = q->proc[i + 1];
+        }
+        q->size--;
+        q->proc[q->size] = NULL;
+        return proc;
+}
+
