@@ -143,7 +143,6 @@ int MEMPHY_format(struct memphy_struct *mp, int pagesz)
 int MEMPHY_get_freefp(struct memphy_struct *mp, int *retfpn)
 {
    struct framephy_struct *fp = mp->free_fp_list;
-   printf("DEBUG: Allocating frame %d from free pool\n", fp->fpn);
    if (fp == NULL)
       return -1;
 
@@ -163,13 +162,6 @@ int MEMPHY_dump(struct memphy_struct *mp)
   /*TODO dump memphy contnt mp->storage
    *     for tracing the memory content
    */
-  /*================================================================
-===== PHYSICAL MEMORY DUMP =====
-BYTE 00000114: 100
-BYTE 00000640: 102
-BYTE 000007e8: 1
-===== PHYSICAL MEMORY END-DUMP =====
-================================================================*/
    printf("===== PHYSICAL MEMORY DUMP =====\n");
    for (int i = 0; i < mp->maxsz; i++)
    {

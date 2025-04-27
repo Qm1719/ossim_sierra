@@ -66,83 +66,14 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
  *@alloc_addr: address of allocated memory region
  *
  */
-// int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
-// {
-//   /*Allocate at the toproof */
-//   struct vm_rg_struct rgnode;
-
-//   /* TODO: commit the vmaid */
-//   // rgnode.vmaid
-//   pthread_mutex_lock(&mmvm_lock);
-//   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
-//   {
-//     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
-//     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
- 
-//     *alloc_addr = rgnode.rg_start;
-
-//     struct framephy_struct *frames = NULL;
-//     int page_count = PAGING_PAGE_COUNT(rgnode.rg_end - rgnode.rg_start);
-//     alloc_pages_range(caller, page_count, &frames);
-    
-//     // Map virtual addresses to physical frames
-//     struct vm_rg_struct ret_rg;
-//     vmap_page_range(caller, rgnode.rg_start, page_count, frames, &ret_rg);
-    
-//     pthread_mutex_unlock(&mmvm_lock);
-//     return 0;
-//   }
-
-//   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
-
-//   /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
-//   /*Attempt to increate limit to get space */
-//   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
-
-//   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
-//   //int inc_limit_ret;
-
-//   /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
-//   int old_sbrk = cur_vma->sbrk;
-
-//   /* TODO INCREASE THE LIMIT as inovking systemcall 
-//    * sys_memap with SYSMEM_INC_OP 
-//    */
-//   struct sc_regs regs;
-//   regs.a1 = SYSMEM_INC_OP;
-//   regs.a2 = vmaid;
-//   regs.a3 = inc_sz;
-  
-//   /* SYSCALL 17 sys_memmap */
-//   syscall(caller, 17, &regs);
-//   //inc_limit_ret = regs.a0;
-//   /* TODO: commit the limit increment */
-
-//   /* TODO: commit the allocation address 
-//   // *alloc_addr = ...
-//   */
-//   caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
-//   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + inc_sz;
-//   *alloc_addr = old_sbrk;
-//   struct framephy_struct *frames = NULL;
-//   int page_count = PAGING_PAGE_COUNT(inc_sz);
-//   alloc_pages_range(caller, page_count, &frames);
-  
-//   // Map virtual addresses to physical frames
-//   struct vm_rg_struct ret_rg;
-//   vmap_page_range(caller, old_sbrk, page_count, frames, &ret_rg);
-  
-//   // Update sbrk pointer
-//   cur_vma->sbrk += inc_sz;
-  
-//   pthread_mutex_unlock(&mmvm_lock);
-//   return 0;
-
-// }
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
-  /*Allocate at the toproof */
   struct vm_rg_struct rgnode;
+  /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
+
+  /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
+  /*Attempt to increate limit to get space */
+  /*Allocate at the toproof */
 
   /* Define page count calculation if not available */
   #ifndef PAGING_PAGE_COUNT
@@ -180,13 +111,13 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   regs.a2 = vmaid;
   regs.a3 = inc_sz;
   
+  /* SYSCALL 17 sys_memmap */
   syscall(caller, 17, &regs);
-  
-  /* Check if syscall was successful */
-  // if (regs.a0 != 0) {
-  //   pthread_mutex_unlock(&mmvm_lock);
-  //   return -1;
-  // }
+  /* TODO: commit the limit increment */
+
+  /* TODO: commit the allocation address 
+  // *alloc_addr = ...
+  */
   
   /* Set up the region and allocate physical memory */
   caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
@@ -282,11 +213,9 @@ int libfree(struct pcb_t *proc, uint32_t reg_index)
 {
   /* TODO Implement free region */
   int ret = __free(proc, 0, reg_index);
-  printf("===== PHYSICAL MEMORY AFTER DEALLOCATION =====\n");
-  printf("PID=%d - Region=%d\n", proc->pid, reg_index);
-  //fflush(stdout);
   #ifdef IODUMP
-    //printf("libfree: reg=%d\n", reg_index);
+    printf("===== PHYSICAL MEMORY AFTER DEALLOCATION =====\n");
+  printf("PID=%d - Region=%d\n", proc->pid, reg_index);
   #ifdef PAGETBL_DUMP
     print_pgtbl(proc, 0, -1); // Print entire page table
   #endif
@@ -479,7 +408,6 @@ int libread(
   int val = __read(proc, 0, source, offset, &data);
   if (destination) *destination = data;
   /* TODO update result of reading action*/
-  //destination 
   printf("===== PHYSICAL MEMORY AFTER READING =====\n");
 #ifdef IODUMP
   printf("read region=%d offset=%d value=%d\n", source, offset, data);
@@ -565,53 +493,19 @@ int free_pcb_memph(struct pcb_t *caller)
  *@pgn: return page number
  *
  */
-// int find_victim_page(struct mm_struct *mm, int *retpgn)
-// {
-//   struct pgn_t *pg = mm->fifo_pgn;
-
-//   /* TODO: Implement the theorical mechanism to find the victim page */
-//   if (pg == NULL)
-//   {
-//     return -1;
-//   }
-//   if (pg->pg_next == NULL)
-//     mm->fifo_pgn = NULL;
-//   else {
-//     struct pgn_t *prev;
-//     while (pg->pg_next != NULL)
-//     {
-//       prev = pg;
-//       pg = pg->pg_next;
-//     }
-//     prev->pg_next = NULL;
-//   }
-//   *retpgn = pg->pgn;
-//   free(pg);
-
-//   return 0;
-// }
 int find_victim_page(struct mm_struct *mm, int *retpgn)
 {
   struct pgn_t *pg = mm->fifo_pgn;
-
-  // Add debug prints
-  printf("DEBUG: find_victim_page called, fifo_pgn=%p\n", (void*)pg);
-  
-  // Handle empty list
+  /* TODO: Implement the theorical mechanism to find the victim page */
   if (pg == NULL) {
-    printf("DEBUG: Empty FIFO queue, using default page 0\n");
     *retpgn = 0;
     return 0;
   }
 
-  // Get the first element (oldest page in FIFO)
   *retpgn = pg->pgn;
-  printf("DEBUG: Victim page selected: PGN=%d\n", *retpgn);
   
-  // Update head pointer to remove first element
   mm->fifo_pgn = pg->pg_next;
   
-  // Free the node
   free(pg);
 
   return 0;

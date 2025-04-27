@@ -51,21 +51,52 @@ struct pcb_t * get_mlq_proc(void) {
 	/*TODO: get a process from PRIORITY [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 * */
-	pthread_mutex_lock(&queue_lock);
-	for (int i = 0; i < MAX_PRIO; i++) {
-		if (slot[i] > 0) {
-			proc = dequeue(&mlq_ready_queue[i]);
-			if (proc != NULL) {
-				slot[i]--;
-				break;
-			}
-		}
-	}
-	pthread_mutex_unlock(&queue_lock);
-	// if (proc == NULL) {
-	// 	fprintf(stderr, "get_mlq_procNo process in the queue\n");
+	// pthread_mutex_lock(&queue_lock);
+	// for (int i = 0; i < MAX_PRIO; i++) {
+	// 	if (slot[i] > 0) {
+	// 		proc = dequeue(&mlq_ready_queue[i]);
+	// 		if (proc != NULL) {
+	// 			slot[i]--;
+	// 			break;
+	// 		}
+	// 	}
 	// }
-	return proc;	
+	// pthread_mutex_unlock(&queue_lock);
+	// // if (proc == NULL) {
+	// // 	fprintf(stderr, "get_mlq_procNo process in the queue\n");
+	// // }
+	// return proc;	
+	pthread_mutex_lock(&queue_lock);
+
+    // First try to find a process normally
+    for (int prio = 0; prio < MAX_PRIO; prio++) {
+        if (!empty(&mlq_ready_queue[prio]) && slot[prio] > 0) {
+            proc = dequeue(&mlq_ready_queue[prio]);
+            slot[prio]--;
+            pthread_mutex_unlock(&queue_lock);
+            return proc;
+        }
+    }
+
+    // If no process found, reset slots for non-empty queues
+    for (int prio = 0; prio < MAX_PRIO; prio++) {
+        if (!empty(&mlq_ready_queue[prio])) {
+            slot[prio] = MAX_PRIO - prio;
+        }
+    }
+
+    // Try again after resetting
+    for (int prio = 0; prio < MAX_PRIO; prio++) {
+        if (!empty(&mlq_ready_queue[prio]) && slot[prio] > 0) {
+            proc = dequeue(&mlq_ready_queue[prio]);
+            slot[prio]--;
+            pthread_mutex_unlock(&queue_lock);
+			return proc;
+        }
+    }
+
+    pthread_mutex_unlock(&queue_lock);
+    return NULL; // Could be NULL if still no process
 }
 
 void put_mlq_proc(struct pcb_t * proc) {
