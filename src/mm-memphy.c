@@ -142,11 +142,13 @@ int MEMPHY_format(struct memphy_struct *mp, int pagesz)
 
 int MEMPHY_get_freefp(struct memphy_struct *mp, int *retfpn)
 {
+   if(mp == NULL)
+      return -1;
    struct framephy_struct *fp = mp->free_fp_list;
-   printf("DEBUG: Allocating frame %d from free pool\n", fp->fpn);
+   
    if (fp == NULL)
       return -1;
-
+   printf("DEBUG: Allocating frame %d from free pool\n", fp->fpn);
    *retfpn = fp->fpn;
    mp->free_fp_list = fp->fp_next;
 
@@ -170,10 +172,15 @@ BYTE 00000640: 102
 BYTE 000007e8: 1
 ===== PHYSICAL MEMORY END-DUMP =====
 ================================================================*/
+   if (mp == NULL)
+   {
+      printf("MEMPHY is not initialized\n");
+      return -1;
+   }
    printf("===== PHYSICAL MEMORY DUMP =====\n");
    for (int i = 0; i < mp->maxsz; i++)
    {
-      if (mp->storage[i] != 0)
+      if (mp->storage[i] == 0) continue;
          printf("BYTE %08x: %d\n", i, mp->storage[i]);
    }
    printf("===== PHYSICAL MEMORY END-DUMP =====\n");

@@ -27,11 +27,9 @@ struct pcb_t * dequeue(struct queue_t * q) {
 based on the priority, i.e. slot= (MAX PRIO - prio), each queue have only fixed slot to use the CPU and
 when it is used up, the system must change the resource to the other process in the next queue and left the
 remaining work for future slot even though it needs a completed round of ready queue.*/
-        int min_prio = MAX_PRIO;
         int min_index = -1;
         for (int i = 0; i < q->size; i++) {
-                if (q->proc[i]->priority < min_prio) {
-                        min_prio = q->proc[i]->priority;
+                if (q->proc[i]->prio < q->proc[min_index]->prio) {
                         min_index = i;
                 }
         }
