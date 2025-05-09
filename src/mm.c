@@ -86,8 +86,7 @@
                      struct framephy_struct *frames, // list of the mapped frames
                      struct vm_rg_struct *ret_rg)    // return mapped region, the real mapped fp
  {                                                   // no guarantee all given pages are mapped
-   struct framephy_struct *fpit;
-   fpit = frames;
+   struct framephy_struct *fpit = frames;
    int pgit = 0;
    int pgn = PAGING_PGN(addr);
  
@@ -96,32 +95,25 @@
    //ret_rg->rg_start = ...
    //ret_rg->vmaid = ...
    */
-   ret_rg->rg_start = addr;
-   ret_rg->rg_end = addr + pgnum * PAGING_PAGESZ;
+   ret_rg->rg_end = addr;
+   ret_rg->rg_start = addr + pgnum * PAGING_PAGESZ;
+ 
  
    /* TODO map range of frame to address space
     *      [addr to addr + pgnum*PAGING_PAGESZ
     *      in page table caller->mm->pgd[]
     */
-   for (pgit = 0; pgit < pgnum && fpit != NULL; pgit++, fpit = fpit->fp_next)
- {
-   pgn = PAGING_PGN(addr + pgit * PAGING_PAGESZ);
-   uint32_t *pte = &caller->mm->pgd[pgn];
-   
-  //  printf("DEBUG: Mapping PGN=%d to FPN=%d\n", pgn, fpit->fpn);
-   
-   pte_set_fpn(pte, fpit->fpn); // Set the FPN in the PTE
-   
-   // After setting, verify value
-  //  printf("DEBUG: After mapping, PTE=0x%08x\n", *pte);
- }
+   while (pgit < pgnum && fpit)
+   {
+     ret_rg->rg_end += PAGING_PAGESZ;
+     pte_set_fpn(caller->mm->pgd + pgit++ + pgn, fpit->fpn);
+     fpit = fpit->fp_next;
+   }
+ 
    /* Tracking for later page replacement activities (if needed)
     * Enqueue new usage page */
-   // enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
-   for (pgit = pgnum -1; pgit >= 0; pgit--) {
-     pgn = PAGING_PGN(addr + pgit * PAGING_PAGESZ);
-     enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
-   }
+   for (pgit = 0; pgit < pgnum; pgit++)
+     enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
  
    return 0;
  }
@@ -137,41 +129,34 @@
  {
    int pgit, fpn;
    struct framephy_struct *newfp_str = NULL;
+ 
    /* TODO: allocate the page 
    //caller-> ...
    //frm_lst-> ...
    */
+  *frm_lst = newfp_str;
  
    for (pgit = 0; pgit < req_pgnum; pgit++)
    {
    /* TODO: allocate the page 
     */
-     newfp_str = malloc(sizeof(struct framephy_struct));
-     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0)
+     if (MEMPHY_get_freefp(caller->mram, &fpn) != 0)
      {
-       newfp_str->fpn = fpn;
-       newfp_str->fp_next = *frm_lst;
-       *frm_lst = newfp_str;
+       int victpgn, victfpn, freefpn;
+       if (find_victim_page(caller->mm, &victpgn) == 0)
+         return -1;
+       victfpn = GETVAL(caller->mm->pgd[victpgn], PAGING_PTE_FPN_MASK, 0);
+       MEMPHY_get_freefp(caller->active_mswp, &freefpn);
+       __swap_cp_page(caller->mram, victfpn, caller->active_mswp, freefpn);
+       pte_set_swap(&caller->mm->pgd[victpgn], 0, freefpn);
+       fpn = victfpn;
      }
-     else
- { // When out of physical frames, find a victim page
-   int victim_pgn;
-   find_victim_page(caller->mm, &victim_pgn);
-   uint32_t pte = caller->mm->pgd[victim_pgn];
-   
-   int vicfpn = PAGING_PTE_FPN(pte);
-   
-   int swpfpn;
-   MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
-   __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
-   pte_set_swap(&caller->mm->pgd[victim_pgn], 0, swpfpn);
-   fpn = vicfpn;
-   
-   // Add this frame to the list
-   newfp_str->fpn = fpn;
-   newfp_str->fp_next = *frm_lst;
-   *frm_lst = newfp_str;
- }
+      // TODO: ERROR CODE of obtaining somes but not enough frames
+     newfp_str = malloc(sizeof(struct framephy_struct));
+     newfp_str->fpn = fpn;
+     newfp_str->owner = caller->mm;
+     newfp_str->fp_next = *frm_lst;
+     *frm_lst = newfp_str;
    }
  
    return 0;
@@ -255,7 +240,7 @@
    mm->pgd = malloc(PAGING_MAX_PGN * sizeof(uint32_t));
  
    /* By default the owner comes with at least one vma */
-   vma0->vm_id = 1;
+   vma0->vm_id = 0;
    vma0->vm_start = 0;
    vma0->vm_end = vma0->vm_start;
    vma0->sbrk = vma0->vm_start;
@@ -270,7 +255,13 @@
  
    /* TODO: update mmap */
    mm->mmap = vma0;
- 
+   mm->fifo_pgn = NULL;
+   for (size_t i = 0; i < PAGING_MAX_SYMTBL_SZ; i++)
+   {
+     mm->symrgtbl[i].rg_start = -1;
+     mm->symrgtbl[i].rg_end = -1;
+     mm->symrgtbl[i].rg_next = NULL;
+   }
    return 0;
  }
  
@@ -380,26 +371,22 @@
    pgn_start = PAGING_PGN(start);
    pgn_end = PAGING_PGN(end);
  
-   printf("print_pgtbl: %d - %d", start, end);
+   printf("print_pgtbl: %d - %d\n", start, end);
    if (caller == NULL) { printf("NULL caller\n"); return -1;}
-   printf("\n");
  
    for (pgit = pgn_start; pgit < pgn_end; pgit++)
    {
-     uint32_t pte = caller->mm->pgd[pgit];
-     printf("%08ld: %08x\n", pgit * sizeof(uint32_t), pte);
+     printf("%08ld: %08x\n", pgit * sizeof(uint32_t), caller->mm->pgd[pgit]);
    }
-   for (pgit = pgn_start; pgit < pgn_end; pgit++)
-   {
+   for (pgit = pgn_start; pgit < pgn_end; pgit++) {
      uint32_t pte = caller->mm->pgd[pgit];
-     
-     // Add human-readable page-to-frame mapping
-     if (PAGING_PAGE_PRESENT(pte) && !(pte & PAGING_PTE_SWAPPED_MASK)) {
-       int fpn = PAGING_PTE_FPN(pte);
-       printf("Page Number: %d -> Frame Number: %d\n", pgit, fpn);
+ 
+     if (PAGING_PAGE_PRESENT(pte)) {
+         int fpn = PAGING_PTE_FPN(pte);
+         printf("Page Number: %d -> Frame Number: %d\n", pgit, fpn);
      }
    }
-   printf("================================================================\n");
+ 
    return 0;
  }
  
