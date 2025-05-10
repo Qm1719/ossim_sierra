@@ -55,6 +55,7 @@ static void * cpu_routine(void * args) {
 		if (proc == NULL) {
 			/* No process is running, the we load new process from
 		 	* ready queue */
+		 // !!!
 			proc = get_proc();
 			if (proc == NULL) {
                            next_slot(timer_id);
