@@ -1,7 +1,7 @@
 1 14
 calc
 alloc 300 0
-alloc 300 4
+alloc 200 0
 free 0
 alloc 100 1
 write 100 1 20
