@@ -35,7 +35,6 @@ void init_scheduler(void) {
 #endif
 	ready_queue.size = 0;
 	run_queue.size = 0;
-	pthread_mutex_init(&queue_lock, NULL);
 }
 
 #ifdef MLQ_SCHED
@@ -53,15 +52,22 @@ struct pcb_t * get_mlq_proc(void) {
     
     
     // Search from highest priority (0) to lowest
-    for (int prio = 0; prio < MAX_PRIO; prio++) {
-        if (!empty(&mlq_ready_queue[prio])) {
-            proc = dequeue(&mlq_ready_queue[prio]);
-			dequeue(&running_list);
-            break;
-        }
-		
-    }
-    
+    static int current_prio = 0;
+	static int current_slot = 0;
+
+	for (int prio=0; prio<MAX_PRIO; prio++) // fix priority foreach get
+	{
+		if(empty(&mlq_ready_queue[prio])) continue;
+		if(prio != current_prio || current_slot == 0)
+		{
+			current_prio = prio;
+			current_slot = slot[prio];
+		}
+		proc = dequeue(&mlq_ready_queue[current_prio]);
+		current_slot--;
+		break;
+	}
+    enqueue(&running_list, proc);
     
 	return proc;	
 }
